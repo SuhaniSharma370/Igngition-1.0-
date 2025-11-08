@@ -1,137 +1,316 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Rider Telemetry Dashboard</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #ffffff;
-      color: #003366;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rider Telemetry Dashboard</title>
+<style>
+  /* --- Reset and base --- */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: #e0e6f0;
+    margin: 0;
+    padding: 1.5rem 1rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overscroll-behavior: none;
+  }
 
+  /* --- Title --- */
+  h1 {
+    font-weight: 700;
+    font-size: 2.5rem;
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+    color: #c3def0;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  /* --- Metrics Container --- */
+  .metrics-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 920px;
+    margin-bottom: 2rem;
+  }
+
+  /* --- Single Metric Box --- */
+  .metric-box {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    box-shadow: 0 8px 15px -5px rgba(0, 0, 0, 0.6);
+    padding: 1.6rem;
+    text-align: center;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    cursor: default;
+    user-select: none;
+  }
+  .metric-box:hover {
+    box-shadow: 0 15px 25px -3px #4a90e2cc;
+    transform: translateY(-6px);
+  }
+
+  /* Numeric value style */
+  .metric-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #a1c9f4;
+    text-shadow: 0 0 8px #7abbfe9e;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+  }
+
+  /* Small label text */
+  .metric-label {
+    font-size: 1.1rem;
+    color: #a9b7c4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* --- Map styling --- */
+  #map {
+    width: 90vw;
+    max-width: 940px;
+    height: 480px;
+    border-radius: 20px;
+    box-shadow: 0 12px 32px -6px rgba(72, 145, 255, 0.7);
+    border: 1px solid #2b547e88;
+    margin-bottom: 2rem;
+  }
+
+  /* --- Chart canvas --- */
+  canvas#accChart {
+    width: 90vw !important;
+    max-width: 960px !important;
+    height: 320px !important;
+    border-radius: 16px;
+    box-shadow: 0 12px 32px -8px #4990ffcc;
+    background: rgba(18, 35, 52, 0.85);
+  }
+
+  /* --- GPS + Heading info --- */
+  #geoInfo {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 940px;
+    margin-bottom: 1rem;
+  }
+  #geoInfo div {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.8rem 1.6rem;
+    border-radius: 16px;
+    box-shadow: 0 5px 14px -4px rgba(74, 144, 255, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #b9d3ff;
+    user-select: text;
+  }
+  #geoInfo svg {
+    width: 22px;
+    height: 22px;
+    fill: #82b1ffcc;
+    flex-shrink: 0;
+  }
+
+  /* --- Loading message --- */
+  #loadingMsg {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #82b1ffcc;
+    margin-top: 1rem;
+    user-select: none;
+    transition: opacity 0.6s ease;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 600px) {
     h1 {
-      margin-top: 20px;
-      font-weight: 300;
+      font-size: 2rem;
     }
-
+    .metric-value {
+      font-size: 2rem;
+    }
     .metrics-container {
-      display: flex;
-      gap: 40px;
-      margin-top: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     }
+  }
+</style>
 
-    .metric-box {
-      background: #f5f9ff;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 0 12px rgba(0,0,0,0.08);
-      text-align: center;
-    }
+<!-- Load external libraries -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    #map {
-      margin-top: 30px;
-      width: 90vw;
-      height: 50vh;
-      border-radius: 12px;
-      border: 1px solid #d0e2ff;
-    }
-
-    canvas {
-      margin-top: 20px;
-      background: #f5f9ff;
-      border-radius: 12px;
-      padding: 10px;
-      width: 90vw;
-    }
-  </style>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
-
 <body>
   <h1>Rider Telemetry Dashboard</h1>
 
-  <div class="metrics-container">
-    <div class="metric-box">
-      <h2 id="speedDisplay">0 km/h</h2>
-      <p>Speed</p>
-    </div>
-    <div class="metric-box">
-      <h2 id="leanDisplay">0°</h2>
-      <p>Lean Angle</p>
-    </div>
+  <div class="metrics-container" role="list" aria-label="Rider telemetry key metrics">
+    <article role="listitem" class="metric-box" aria-live="polite" aria-atomic="true">
+      <div id="speedDisplay" class="metric-value">0 km/h</div>
+      <div class="metric-label">Speed</div>
+    </article>
+    <article role="listitem" class="metric-box" aria-live="polite" aria-atomic="true">
+      <div id="leanDisplay" class="metric-value">0°</div>
+      <div class="metric-label">Lean Angle</div>
+    </article>
+    <article role="listitem" class="metric-box" aria-live="polite" aria-atomic="true">
+      <div id="accXDisplay" class="metric-value">0.00</div>
+      <div class="metric-label">Accel X (m/s²)</div>
+    </article>
+    <article role="listitem" class="metric-box" aria-live="polite" aria-atomic="true">
+      <div id="accYDisplay" class="metric-value">0.00</div>
+      <div class="metric-label">Accel Y (m/s²)</div>
+    </article>
+    <article role="listitem" class="metric-box" aria-live="polite" aria-atomic="true">
+      <div id="accZDisplay" class="metric-value">0.00</div>
+      <div class="metric-label">Accel Z (m/s²)</div>
+    </article>
   </div>
 
-  <canvas id="accChart"></canvas>
-  <div id="map"></div>
+  <canvas id="accChart" aria-label="Acceleration chart over time" role="img"></canvas>
+
+  <section id="geoInfo" aria-live="polite" aria-atomic="true" role="region" aria-label="GPS coordinates and heading information">
+    <div title="Latitude" aria-label="Current latitude">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zM12 11.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/></svg>
+      <span id="latDisplay">Lat: 0.00000</span>
+    </div>
+    <div title="Longitude" aria-label="Current longitude">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+      <span id="lonDisplay">Lon: 0.00000</span>
+    </div>
+    <div title="Compass heading" aria-label="Compass heading degrees">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L15 8.5 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8.5z"/></svg>
+      <span id="compassDisplay">Heading: 0°</span>
+    </div>
+  </section>
+
+  <div id="map" role="region" aria-label="GPS live map"></div>
+
+  <div id="loadingMsg">Connecting to sensor...</div>
 
   <script>
     const url = prompt("Enter your Phyphox JSON Live URL (e.g., http://192.168.1.34:8080)");
 
     const map = L.map('map').setView([0, 0], 15);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-    let path = L.polyline([], {color: "#0055cc"}).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    let path = L.polyline([], {color: "#4A90E2", weight: 4}).addTo(map);
 
     const ctx = document.getElementById("accChart").getContext("2d");
     const accChart = new Chart(ctx, {
       type: "line",
-      data: { labels: [], datasets: [{ label: "Acceleration (m/s²)", data: [], borderWidth: 2 }] },
-      options: { scales: { y: { beginAtZero: true } } }
+      data: {
+        labels: [],
+        datasets: [
+          { label: "Accel X (m/s²)", data: [], borderColor: "#FF6384", fill: false, tension: 0.35 },
+          { label: "Accel Y (m/s²)", data: [], borderColor: "#36A2EB", fill: false, tension: 0.35 },
+          { label: "Accel Z (m/s²)", data: [], borderColor: "#FFCE56", fill: false, tension: 0.35 }
+        ]
+      },
+      options: {
+        animation: { duration: 250 },
+        scales: {
+          y: { beginAtZero: true, suggestedMin: -15, suggestedMax: 15, grid: {color: '#334455'} },
+          x: { grid: {color: '#334455'}, ticks: {display: false} }
+        },
+        plugins: {
+          legend: { labels: { color: '#e0e6f0', font: {weight: '600'} } }
+        },
+        responsive: true,
+        maintainAspectRatio: false
+      }
     });
+
+    const loadingMsg = document.getElementById("loadingMsg");
+    let connected = false;
 
     function update() {
       fetch(url)
         .then(r => r.json())
         .then(d => {
-          let ax = d.buffer.accX?.last || 0;
-          let ay = d.buffer.accY?.last || 0;
-          let az = d.buffer.accZ?.last || 0;
-          let speed = d.buffer.speed?.last || 0;
-          let lat = d.buffer.latitude?.last;
-          let lon = d.buffer.longitude?.last;
+          if (!connected) {
+            connected = true;
+            loadingMsg.style.opacity = 0;
+            setTimeout(() => loadingMsg.style.display = 'none', 500);
+          }
+          const ax = d.buffer.accX?.last || 0;
+          const ay = d.buffer.accY?.last || 0;
+          const az = d.buffer.accZ?.last || 0;
+          const speed = d.buffer.speed?.last || 0;
+          const lat = d.buffer.latitude?.last;
+          const lon = d.buffer.longitude?.last;
+          const heading = d.buffer.heading?.last || 0;
 
           document.getElementById("speedDisplay").innerText = speed.toFixed(1) + " km/h";
-          let lean = Math.atan2(ax, 9.81) * (180 / Math.PI);
-          document.getElementById("leanDisplay").innerText = lean.toFixed(1) + "°";
+          const leanAngle = Math.atan2(ax, 9.81) * (180 / Math.PI);
+          document.getElementById("leanDisplay").innerText = leanAngle.toFixed(1) + "°";
+
+          document.getElementById("accXDisplay").innerText = ax.toFixed(2);
+          document.getElementById("accYDisplay").innerText = ay.toFixed(2);
+          document.getElementById("accZDisplay").innerText = az.toFixed(2);
+
+          document.getElementById("latDisplay").innerText = lat ? `Lat: ${lat.toFixed(5)}` : "Lat: N/A";
+          document.getElementById("lonDisplay").innerText = lon ? `Lon: ${lon.toFixed(5)}` : "Lon: N/A";
+          document.getElementById("compassDisplay").innerText = `Heading: ${heading.toFixed(0)}°`;
 
           accChart.data.labels.push("");
-          accChart.data.datasets[0].data.push(ax.toFixed(2));
-          if (accChart.data.labels.length > 40) { 
-            accChart.data.labels.shift(); 
-            accChart.data.datasets[0].data.shift(); 
+          accChart.data.datasets[0].data.push(ax);
+          accChart.data.datasets[1].data.push(ay);
+          accChart.data.datasets[2].data.push(az);
+
+          if (accChart.data.labels.length > 50) {
+            accChart.data.labels.shift();
+            accChart.data.datasets.forEach(ds => ds.data.shift());
           }
           accChart.update();
 
           if (lat && lon) {
             path.addLatLng([lat, lon]);
-            map.setView([lat, lon]);
+            map.setView([lat, lon], map.getZoom(), { animate: true, duration: 0.5 });
           }
 
-          // Optional: Crash / Impact Detection
-          const IMPACT_THRESHOLD = 30.0; // m/s^2 ~ 3g
-          const GYRO_THRESHOLD = 250.0; // degrees/s or rad/s depending on experiment
-          let gyro = d.buffer.rotX?.last || 0;
+          // Crash detection alert
+          const IMPACT_THRESHOLD = 30.0;
+          const GYRO_THRESHOLD = 250.0; 
+          const gyro = d.buffer.rotX?.last || 0;
+          const res = Math.sqrt(ax*ax + ay*ay + az*az);
 
-          let res = Math.sqrt(ax*ax + ay*ay + az*az);
           if (res > IMPACT_THRESHOLD || Math.abs(gyro) > GYRO_THRESHOLD) {
-            alert('High impact detected! Save data and check rider.');
+            alert('⚠️ High impact detected! Save data and check rider.');
           }
-
         })
-        .catch(e => console.log("Error fetching data:", e));
-
+        .catch(e => {
+          if (connected) {
+            connected = false;
+            loadingMsg.style.display = 'block';
+            loadingMsg.style.opacity = 1;
+            loadingMsg.textContent = 'Connection lost. Retrying...';
+          }
+          console.error("Error fetching data:", e);
+        });
       requestAnimationFrame(update);
     }
     update();
   </script>
-
 </body>
 </html>
+
