@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Rider Telemetry Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #ffffff;
+      color: #003366;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin-top: 20px;
+      font-weight: 300;
+    }
+
+    .metrics-container {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+    }
+
+    .metric-box {
+      background: #f5f9ff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+
+    #map {
+      margin-top: 30px;
+      width: 90vw;
+      height: 50vh;
+      border-radius: 12px;
+      border: 1px solid #d0e2ff;
+    }
+
+    canvas {
+      margin-top: 20px;
+      background: #f5f9ff;
+      border-radius: 12px;
+      padding: 10px;
+      width: 90vw;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+
+<body>
+  <h1>Rider Telemetry Dashboard</h1>
+
+  <div class="metrics-container">
+    <div class="metric-box">
+      <h2 id="speedDisplay">0 km/h</h2>
+      <p>Speed</p>
+    </div>
+    <div class="metric-box">
+      <h2 id="leanDisplay">0°</h2>
+      <p>Lean Angle</p>
+    </div>
+  </div>
+
+  <canvas id="accChart"></canvas>
+  <div id="map"></div>
+
+  <script>
+    const url = prompt("Enter your Phyphox JSON Live URL (e.g., http://192.168.1.34:8080)");
+
+    const map = L.map('map').setView([0, 0], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+    let path = L.polyline([], {color: "#0055cc"}).addTo(map);
+
+    const ctx = document.getElementById("accChart").getContext("2d");
+    const accChart = new Chart(ctx, {
+      type: "line",
+      data: { labels: [], datasets: [{ label: "Acceleration (m/s²)", data: [], borderWidth: 2 }] },
+      options: { scales: { y: { beginAtZero: true } } }
+    });
+
+    function update() {
+      fetch(url)
+        .then(r => r.json())
+        .then(d => {
+          let ax = d.buffer.accX?.last || 0;
+          let ay = d.buffer.accY?.last || 0;
+          let az = d.buffer.accZ?.last || 0;
+          let speed = d.buffer.speed?.last || 0;
+          let lat = d.buffer.latitude?.last;
+          let lon = d.buffer.longitude?.last;
+
+          document.getElementById("speedDisplay").innerText = speed.toFixed(1) + " km/h";
+          let lean = Math.atan2(ax, 9.81) * (180 / Math.PI);
+          document.getElementById("leanDisplay").innerText = lean.toFixed(1) + "°";
+
+          accChart.data.labels.push("");
+          accChart.data.datasets[0].data.push(ax.toFixed(2));
+          if (accChart.data.labels.length > 40) { 
+            accChart.data.labels.shift(); 
+            accChart.data.datasets[0].data.shift(); 
+          }
+          accChart.update();
+
+          if (lat && lon) {
+            path.addLatLng([lat, lon]);
+            map.setView([lat, lon]);
+          }
+
+          // Optional: Crash / Impact Detection
+          const IMPACT_THRESHOLD = 30.0; // m/s^2 ~ 3g
+          const GYRO_THRESHOLD = 250.0; // degrees/s or rad/s depending on experiment
+          let gyro = d.buffer.rotX?.last || 0;
+
+          let res = Math.sqrt(ax*ax + ay*ay + az*az);
+          if (res > IMPACT_THRESHOLD || Math.abs(gyro) > GYRO_THRESHOLD) {
+            alert('High impact detected! Save data and check rider.');
+          }
+
+        })
+        .catch(e => console.log("Error fetching data:", e));
+
+      requestAnimationFrame(update);
+    }
+    update();
+  </script>
+
+</body>
+</html>
